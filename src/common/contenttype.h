@@ -38,13 +38,7 @@ enum {
     isHidden,
 
     /// Item text with diacritics removed; invalid if the text has none.
-    textWithoutAccents,
-
-    /// Bit per character class present in the item's searchable text,
-    /// as a quint64. See ClipboardItem::searchSignature().
-    /// New values go last so plugins built against an older header keep
-    /// the meaning of the ones they know.
-    searchSignature
+    textWithoutAccents
 };
 
 }

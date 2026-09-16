@@ -124,8 +124,16 @@ public:
      */
     void clearTextCache() const;
 
-    /** Return the item's character summary without going through QVariant. */
-    quint64 searchSignature(int row) const { return m_clipboardList[row].searchSignature(); }
+    /**
+     * Return the item's character summary without going through QVariant.
+     * An out of range row contains nothing, so it requires nothing.
+     */
+    quint64 searchSignature(int row) const
+    {
+        if (row < 0 || row >= m_clipboardList.size())
+            return ~Q_UINT64_C(0);
+        return m_clipboardList[row].searchSignature();
+    }
 
 private:
     ClipboardItemList m_clipboardList;

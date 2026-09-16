@@ -342,6 +342,13 @@ public:
      * Return true if regular expression matches items content.
      * Returns false by default.
      */
+    /**
+     * Return true if the item matches the filter.
+     *
+     * Note: ClipboardItem::searchSignature() summarizes the fields matched
+     * here to reject items cheaply. Matching a field it does not know about
+     * would make those items unreachable by search.
+     */
     virtual bool matches(const QModelIndex &index, const ItemFilter &filter) const;
 
     /**

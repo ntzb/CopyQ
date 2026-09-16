@@ -148,8 +148,6 @@ QVariant ClipboardItem::data(int role) const
         return m_data; // copy-on-write, so this should be fast
     case contentType::text:
         return text();
-    case contentType::searchSignature:
-        return QVariant(searchSignature());
     case contentType::textWithoutAccents: {
         const QString folded = textWithoutAccents();
         return folded.isNull() ? QVariant() : QVariant(folded);
@@ -228,11 +226,14 @@ quint64 ClipboardItem::searchSignature() const
         addToSearchSignature(&signature, folded);
 
     // Owned by the plugins that match them (itemtags, itemsync); named here
-    // because those live in separate modules.
-    const QLatin1String mimeTags("application/x-copyq-tags");
-    const QLatin1String mimeSyncBaseName("application/x-copyq-itemsync-basename");
+    // because those live in separate modules. Kept as QString so looking them
+    // up in the data does not build a temporary for every item.
+    static const QString mimeNotes = mimeItemNotes;
+    static const QString mimeTags = QStringLiteral("application/x-copyq-tags");
+    static const QString mimeSyncBaseName =
+        QStringLiteral("application/x-copyq-itemsync-basename");
 
-    for (const QLatin1String &mime : {QLatin1String(mimeItemNotes), mimeTags, mimeSyncBaseName}) {
+    for (const QString &mime : {mimeNotes, mimeTags, mimeSyncBaseName}) {
         const auto it = m_data.find(mime);
         if ( it == m_data.constEnd() )
             continue;
