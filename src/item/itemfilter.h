@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QtGlobal>
+
 #include <memory>
 
 class QModelIndex;
@@ -30,11 +32,25 @@ public:
      * Regular expressions can widen ("a" to "a|b"), so the default is false.
      */
     virtual bool narrows(const ItemFilter &previousFilter) const;
+
+    /**
+     * Return the characters an item must contain to be able to match, as a
+     * bit per character class (see common/searchsignature.h).
+     *
+     * Zero means no item can be rejected this way, which is the default:
+     * a regular expression's literal characters are not required ones.
+     */
+    virtual quint64 searchSignature() const;
 };
 
 inline bool ItemFilter::narrows(const ItemFilter &) const
 {
     return false;
+}
+
+inline quint64 ItemFilter::searchSignature() const
+{
+    return 0;
 }
 
 using ItemFilterPtr = std::shared_ptr<ItemFilter>;

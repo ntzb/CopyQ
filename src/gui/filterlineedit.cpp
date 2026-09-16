@@ -33,6 +33,7 @@
 #include "common/config.h"
 #include "common/contenttype.h"
 #include "common/regexp.h"
+#include "common/searchsignature.h"
 #include "common/textdata.h"
 #include "gui/iconfactory.h"
 #include "gui/icons.h"
@@ -208,6 +209,19 @@ public:
         m_matchers.reserve( m_needles.size() );
         for (const QString &needle : m_needles)
             m_matchers.append( QStringMatcher(needle, caseSensitivity) );
+
+        // All needles have to be found, so every character of every needle
+        // has to be present. A single '/' searches MIME formats instead of
+        // the item text, where this says nothing.
+        if ( !searchString().contains(QLatin1Char('/')) ) {
+            for (const QString &needle : m_needles)
+                addToSearchSignature(&m_signature, needle);
+        }
+    }
+
+    quint64 searchSignature() const override
+    {
+        return m_signature;
     }
 
     bool narrows(const ItemFilter &previousFilter) const override
@@ -332,6 +346,7 @@ private:
 
     QStringList m_needles;
     QList<QStringMatcher> m_matchers;
+    quint64 m_signature = 0;
     Qt::CaseSensitivity m_caseSensitivity;
 };
 
