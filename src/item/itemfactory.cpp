@@ -489,8 +489,10 @@ bool ItemFactory::matches(const QModelIndex &index, const ItemFilter &filter) co
     // before any of them is searched. Most items fail this.
     const quint64 required = filter.searchSignature();
     if (required != 0) {
-        const quint64 present = index.data(contentType::searchSignature).toULongLong();
-        if ( (present & required) != required )
+        // A model that does not provide the summary must not have all of its
+        // items rejected, so an invalid value means "cannot reject".
+        const QVariant present = index.data(contentType::searchSignature);
+        if ( present.isValid() && (present.toULongLong() & required) != required )
             return false;
     }
 

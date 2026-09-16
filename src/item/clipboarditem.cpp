@@ -217,25 +217,30 @@ quint64 ClipboardItem::searchSignature() const
         return m_searchSignature;
 
     quint64 signature = 0;
-    for (auto it = m_data.constBegin(); it != m_data.constEnd(); ++it) {
-        // Only formats a matcher reads as text: item text, notes, tags and
-        // the file name used by synchronized tabs. Anything else - images
-        // above all - is never searched, so it contributes nothing.
-        const QString &mime = it.key();
-        const bool isText = mime.startsWith(QLatin1String("text/"))
-                || ( mime.startsWith(QLatin1String(COPYQ_MIME_PREFIX))
-                     && !mime.startsWith(mimePrivatePrefix) );
-        if (!isText)
+
+    // Exactly the fields a matcher reads, no more: reading anything else
+    // (the HTML of a copied web page, an encrypted blob) would cost far more
+    // than the search it is meant to save.
+    const QString itemText = text();
+    addToSearchSignature(&signature, itemText);
+    const QString folded = textWithoutAccents();
+    if ( !folded.isNull() )
+        addToSearchSignature(&signature, folded);
+
+    // Owned by the plugins that match them (itemtags, itemsync); named here
+    // because those live in separate modules.
+    const QLatin1String mimeTags("application/x-copyq-tags");
+    const QLatin1String mimeSyncBaseName("application/x-copyq-itemsync-basename");
+
+    for (const QLatin1String &mime : {QLatin1String(mimeItemNotes), mimeTags, mimeSyncBaseName}) {
+        const auto it = m_data.find(mime);
+        if ( it == m_data.constEnd() )
             continue;
-
-        const QString text = getTextData( it->toByteArray() );
-        addToSearchSignature(&signature, text);
-
-        // The search also matches with diacritics stripped, so both forms
-        // have to be covered or a match could be rejected.
-        const QString folded = accentsRemoved(text);
-        if (folded != text)
-            addToSearchSignature(&signature, folded);
+        const QString value = getTextData( it->toByteArray() );
+        addToSearchSignature(&signature, value);
+        const QString valueFolded = accentsRemoved(value);
+        if (valueFolded != value)
+            addToSearchSignature(&signature, valueFolded);
     }
 
     m_searchSignature = signature;
