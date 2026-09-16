@@ -20,17 +20,19 @@ public:
     virtual QString searchString() const = 0;
 
     /**
-     * Return true if this filter can only match a subset of what the filter
-     * for @a previousSearchString matched.
+     * Return true if this filter can only match a subset of what
+     * @a previousFilter matched.
      *
      * Allows re-filtering only the items still visible instead of the whole
-     * tab. Regular expressions cannot narrow ("a" to "a|b" widens), so the
-     * default is false.
+     * tab. The whole filter is passed, not just its search string, because
+     * the search options can change without the text changing.
+     *
+     * Regular expressions can widen ("a" to "a|b"), so the default is false.
      */
-    virtual bool narrows(const QString &previousSearchString) const;
+    virtual bool narrows(const ItemFilter &previousFilter) const;
 };
 
-inline bool ItemFilter::narrows(const QString &) const
+inline bool ItemFilter::narrows(const ItemFilter &) const
 {
     return false;
 }

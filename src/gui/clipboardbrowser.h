@@ -408,4 +408,7 @@ class ClipboardBrowser final : public QListView
 
         /// Last filter pass reached the end, so hidden rows are authoritative.
         bool m_filterComplete = false;
+
+        /// Row un-hidden by a row-number search; never filtered out again.
+        int m_filterKeepRow = -1;
 };

@@ -210,12 +210,24 @@ public:
             m_matchers.append( QStringMatcher(needle, caseSensitivity) );
     }
 
-    bool narrows(const QString &previousSearchString) const override
+    bool narrows(const ItemFilter &previousFilter) const override
     {
-        // Every needle here extends or adds to the previous ones and needles
-        // are AND-ed, so nothing hidden before can match now.
-        return !previousSearchString.isEmpty()
-            && searchString().startsWith(previousSearchString);
+        // Search options can change while the text stays the same, and
+        // filterItems() keeps the old filter in that case.
+        const auto *previous = dynamic_cast<const ItemFilterFixedStrings *>(&previousFilter);
+        if (!previous || previous->m_caseSensitivity != m_caseSensitivity)
+            return false;
+
+        const QString previousSearch = previous->searchString();
+        if ( previousSearch.isEmpty() || !searchString().startsWith(previousSearch) )
+            return false;
+
+        // Every needle extends or adds to the previous ones and needles are
+        // AND-ed, so nothing hidden before can match now - except that a
+        // single '/' switches on matching against MIME formats
+        // (BaseItemFilter::matchesIndex), which can match more items, not
+        // fewer.
+        return !searchString().contains(QLatin1Char('/'));
     }
 
     bool matchesNone() const override

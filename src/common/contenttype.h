@@ -28,9 +28,6 @@ enum {
     removeFormats,
 
     text,
-
-    /// Item text with diacritics removed; invalid if text() has none.
-    textWithoutAccents,
     html,
     notes,
 
@@ -38,7 +35,11 @@ enum {
     color,
 
     /// If true, hide content of item (not notes, tags etc.).
-    isHidden
+    isHidden,
+
+    /// Item text with diacritics removed; invalid if the text has none.
+    /// Kept last so plugin builds are not broken by the added value.
+    textWithoutAccents
 };
 
 }

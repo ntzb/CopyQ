@@ -118,6 +118,12 @@ public:
      */
     int findItem(uint itemHash) const;
 
+    /**
+     * Drop text cached for filtering in all items.
+     * The cache only pays off while a search is active.
+     */
+    void clearTextCache() const;
+
 private:
     ClipboardItemList m_clipboardList;
 };

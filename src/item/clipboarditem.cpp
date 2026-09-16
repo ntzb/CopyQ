@@ -25,6 +25,8 @@ void clearDataExceptInternal(QVariantMap *data)
     }
 }
 
+constexpr int maxCachedTextSize = 64 * 1024;
+
 } // namespace
 
 ClipboardItem::ClipboardItem()
@@ -146,7 +148,7 @@ QVariant ClipboardItem::data(int role) const
     case contentType::text:
         return text();
     case contentType::textWithoutAccents: {
-        const QString &folded = textWithoutAccents();
+        const QString folded = textWithoutAccents();
         return folded.isNull() ? QVariant() : QVariant(folded);
     }
     case contentType::html:
@@ -162,25 +164,48 @@ QVariant ClipboardItem::data(int role) const
     return QVariant();
 }
 
-const QString &ClipboardItem::text() const
+QString ClipboardItem::text() const
 {
-    if (!m_textCached) {
-        m_text = getTextData(m_data);
+    if (m_textCached)
+        return m_text;
+
+    QString decoded = getTextData(m_data);
+
+    // A cached copy is UTF-16 next to the UTF-8 in m_data, so large items are
+    // left uncached - they are rare, they dominate memory, and re-decoding
+    // them is what CopyQ did for every item anyway.
+    if (decoded.size() <= maxCachedTextSize) {
+        m_text = decoded;
         m_textCached = true;
     }
 
-    return m_text;
+    return decoded;
 }
 
-const QString &ClipboardItem::textWithoutAccents() const
+QString ClipboardItem::textWithoutAccents() const
 {
-    if (!m_textWithoutAccentsCached) {
-        const QString folded = accentsRemoved( text() );
-        m_textWithoutAccents = (folded == m_text) ? QString() : folded;
+    if (m_textWithoutAccentsCached)
+        return m_textWithoutAccents;
+
+    const QString text = this->text();
+    QString folded = accentsRemoved(text);
+    if (folded == text)
+        folded.clear();
+
+    if (text.size() <= maxCachedTextSize) {
+        m_textWithoutAccents = folded;
         m_textWithoutAccentsCached = true;
     }
 
-    return m_textWithoutAccents;
+    return folded;
+}
+
+void ClipboardItem::clearTextCache() const
+{
+    m_text.clear();
+    m_textWithoutAccents.clear();
+    m_textCached = false;
+    m_textWithoutAccentsCached = false;
 }
 
 unsigned int ClipboardItem::dataHash() const
@@ -194,8 +219,5 @@ unsigned int ClipboardItem::dataHash() const
 void ClipboardItem::invalidateDataHash()
 {
     m_hash = 0;
-    m_text.clear();
-    m_textWithoutAccents.clear();
-    m_textCached = false;
-    m_textWithoutAccentsCached = false;
+    clearTextCache();
 }

@@ -473,6 +473,13 @@ void ClipboardBrowser::connectModelAndDelegate()
     connect( &m, &QAbstractItemModel::dataChanged,
              this, [this]() { delayedSaveItems(m_sharedData->saveDelayMsOnItemModified); } );
 
+    // Narrowing assumes hidden rows stay non-matching; changing item data or
+    // adding items breaks that, so the next filter takes the full pass.
+    connect( &m, &QAbstractItemModel::dataChanged,
+             this, [this]() { m_filterComplete = false; } );
+    connect( &m, &QAbstractItemModel::rowsInserted,
+             this, [this]() { m_filterComplete = false; } );
+
     connect( &d, &ItemDelegate::itemWidgetCreated,
              this, &ClipboardBrowser::itemWidgetCreated );
 
@@ -1249,7 +1256,8 @@ void ClipboardBrowser::filterItems(const ItemFilterPtr &filter)
         // If the new filter can only match a subset of the previous one and
         // that pass finished, the hidden rows are already known to not match,
         // so only the visible ones need to be re-tested.
-        m_filterNarrowing = m_filterComplete && filter->narrows(oldSearch);
+        m_filterNarrowing = m_filterComplete && oldFilter
+                && filter->narrows(*oldFilter);
         m_filterComplete = false;
 
         // Otherwise hide all rows first, then start filtering rows in batches
@@ -1259,17 +1267,20 @@ void ClipboardBrowser::filterItems(const ItemFilterPtr &filter)
                 setRowHidden(row, true);
         }
 
-        const int currentRow = currentRowFromSearch(newSearch);
-        if (currentRow != -1)
-            setCurrent(currentRow);
+        // Searching a row number un-hides that row; it must survive the pass.
+        m_filterKeepRow = currentRowFromSearch(newSearch);
+        if (m_filterKeepRow != -1)
+            setCurrent(m_filterKeepRow);
 
         filterBatch(++m_lastFilterId, index(0));
     } else {
         // Show all items if filter is cleared or invalid.
         m_filterNarrowing = false;
         m_filterComplete = false;
+        m_filterKeepRow = -1;
         for ( int row = 0; row < length(); ++row )
             setRowHidden(row, false);
+        m.clearTextCache();
         scrollTo(currentIndex(), PositionAtCenter);
         emit filterProgressChanged(100);
     }
@@ -1299,11 +1310,14 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
     int row = lastIndex.row();
     for ( ; row < length(); ++row ) {
         bool shown;
-        if (m_filterNarrowing) {
-            // Hidden by a less specific filter, so it cannot match now either.
-            if ( isRowHidden(row) )
-                continue;
-            shown = !hideFiltered(row);
+        if (row == m_filterKeepRow) {
+            shown = true;
+        } else if (m_filterNarrowing) {
+            // A row hidden by the less specific filter cannot match now
+            // either, so only the visible ones are re-tested. Skipped rows
+            // still count towards the time slice below - walking a long run
+            // of them must not block the event loop.
+            shown = !isRowHidden(row) && !hideFiltered(row);
         } else {
             shown = !isRowHidden(row) || !hideFiltered(row);
         }
