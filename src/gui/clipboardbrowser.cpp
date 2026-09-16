@@ -1405,7 +1405,7 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
         // Only the length of the search: what is typed here is often a
         // fragment of something private.
         const auto passFilter = d.itemFilter();
-        log( QStringLiteral(
+        COPYQ_LOG( QStringLiteral(
                        "Filter: %1 items, %2 tested, %3 shown, %4 batches,"
                        " %5 rejected, %6 ms scan, %7 ms wall%8, %9 char search")
                    .arg(length())
@@ -1416,7 +1416,7 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
                    .arg(m_filterScanMs)
                    .arg(m_filterPassTimer.elapsed())
                    .arg(m_filterNarrowing ? QStringLiteral(", narrowed") : QString())
-                   .arg(passFilter ? passFilter->searchString().size() : 0), LogNote );
+                   .arg(passFilter ? passFilter->searchString().size() : 0) );
     }
 
     d.updateAllRows();
