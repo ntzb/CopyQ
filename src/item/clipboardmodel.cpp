@@ -226,6 +226,12 @@ bool ClipboardModel::moveRows(
     return true;
 }
 
+void ClipboardModel::clearTextCache() const
+{
+    for (int row = 0; row < m_clipboardList.size(); ++row)
+        m_clipboardList[row].clearTextCache();
+}
+
 void ClipboardModel::sortItems(const QModelIndexList &indexList, CompareItems *compare)
 {
     QList<QPersistentModelIndex> list = validIndeces(indexList);

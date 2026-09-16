@@ -60,15 +60,19 @@ public:
     /**
      * Return item text, decoded once and cached.
      * Filtering asks for this on every key press; decoding UTF-8 each time
-     * dominated the search.
+     * dominated the search. Items above a size limit are not cached - for
+     * those the decoding is cheap relative to the memory a UTF-16 copy costs.
      */
-    const QString &text() const;
+    QString text() const;
 
     /**
      * Return text with diacritics removed, or a null string if there was
      * nothing to remove (in which case text() already answers the query).
      */
-    const QString &textWithoutAccents() const;
+    QString textWithoutAccents() const;
+
+    /** Drop the cached text; the data itself is kept. */
+    void clearTextCache() const;
 
     /** Return hash for item's data. */
     unsigned int dataHash() const;
