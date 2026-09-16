@@ -44,6 +44,7 @@
 #include <QPainter>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QStringMatcher>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
@@ -202,6 +203,19 @@ public:
         , m_needles( searchString.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts) )
         , m_caseSensitivity(caseSensitivity)
     {
+        // Boyer-Moore beats QString::contains() on long items, and the tables
+        // are built once per key press instead of once per item.
+        m_matchers.reserve( m_needles.size() );
+        for (const QString &needle : m_needles)
+            m_matchers.append( QStringMatcher(needle, caseSensitivity) );
+    }
+
+    bool narrows(const QString &previousSearchString) const override
+    {
+        // Every needle here extends or adds to the previous ones and needles
+        // are AND-ed, so nothing hidden before can match now.
+        return !previousSearchString.isEmpty()
+            && searchString().startsWith(previousSearchString);
     }
 
     bool matchesNone() const override
@@ -211,9 +225,9 @@ public:
 
     bool matches(const QString &text) const override
     {
-        return std::all_of(std::begin(m_needles), std::end(m_needles),
-            [&text, this](const QString &needle) {
-                return text.contains(needle, m_caseSensitivity);
+        return std::all_of(std::begin(m_matchers), std::end(m_matchers),
+            [&text](const QStringMatcher &matcher) {
+                return matcher.indexIn(text) != -1;
             });
     }
 
@@ -305,6 +319,7 @@ private:
     }
 
     QStringList m_needles;
+    QList<QStringMatcher> m_matchers;
     Qt::CaseSensitivity m_caseSensitivity;
 };
 

@@ -28,6 +28,9 @@ enum {
     removeFormats,
 
     text,
+
+    /// Item text with diacritics removed; invalid if text() has none.
+    textWithoutAccents,
     html,
     notes,
 

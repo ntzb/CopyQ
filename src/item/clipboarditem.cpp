@@ -139,12 +139,16 @@ QVariant ClipboardItem::data(int role) const
     switch(role) {
     case Qt::DisplayRole:
     case Qt::EditRole:
-        return getTextData(m_data);
+        return text();
 
     case contentType::data:
         return m_data; // copy-on-write, so this should be fast
     case contentType::text:
-        return getTextData(m_data);
+        return text();
+    case contentType::textWithoutAccents: {
+        const QString &folded = textWithoutAccents();
+        return folded.isNull() ? QVariant() : QVariant(folded);
+    }
     case contentType::html:
         return getTextData(m_data, mimeHtml);
     case contentType::notes:
@@ -158,6 +162,27 @@ QVariant ClipboardItem::data(int role) const
     return QVariant();
 }
 
+const QString &ClipboardItem::text() const
+{
+    if (!m_textCached) {
+        m_text = getTextData(m_data);
+        m_textCached = true;
+    }
+
+    return m_text;
+}
+
+const QString &ClipboardItem::textWithoutAccents() const
+{
+    if (!m_textWithoutAccentsCached) {
+        const QString folded = accentsRemoved( text() );
+        m_textWithoutAccents = (folded == m_text) ? QString() : folded;
+        m_textWithoutAccentsCached = true;
+    }
+
+    return m_textWithoutAccents;
+}
+
 unsigned int ClipboardItem::dataHash() const
 {
     if (m_hash == 0)
@@ -169,4 +194,8 @@ unsigned int ClipboardItem::dataHash() const
 void ClipboardItem::invalidateDataHash()
 {
     m_hash = 0;
+    m_text.clear();
+    m_textWithoutAccents.clear();
+    m_textCached = false;
+    m_textWithoutAccentsCached = false;
 }
