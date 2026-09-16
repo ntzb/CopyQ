@@ -27,6 +27,7 @@ private slots:
     void init();
     void cleanup();
 
+    void searchSignatureIsSuperset();
     void configPath();
     void readLog();
     void rotateLog();
