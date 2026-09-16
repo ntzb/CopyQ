@@ -1256,10 +1256,18 @@ void ClipboardBrowser::filterItems(const ItemFilterPtr &filter)
     d.setItemFilter(filter);
 
     if ( filter && !filter->matchesAll() ) {
-        // Hide all rows first, then start filtering rows in batches
+        // If the new filter can only match a subset of the previous one and
+        // that pass finished, the hidden rows are already known to not match,
+        // so only the visible ones need to be re-tested.
+        m_filterNarrowing = m_filterComplete && filter->narrows(oldSearch);
+        m_filterComplete = false;
+
+        // Otherwise hide all rows first, then start filtering rows in batches
         // while processing events regularly to keep UI responsive.
-        for ( int row = 0; row < length(); ++row )
-            setRowHidden(row, true);
+        if (!m_filterNarrowing) {
+            for ( int row = 0; row < length(); ++row )
+                setRowHidden(row, true);
+        }
 
         const int currentRow = currentRowFromSearch(newSearch);
         if (currentRow != -1)
@@ -1268,6 +1276,8 @@ void ClipboardBrowser::filterItems(const ItemFilterPtr &filter)
         filterBatch(++m_lastFilterId, index(0));
     } else {
         // Show all items if filter is cleared or invalid.
+        m_filterNarrowing = false;
+        m_filterComplete = false;
         for ( int row = 0; row < length(); ++row )
             setRowHidden(row, false);
         scrollTo(currentIndex(), PositionAtCenter);
@@ -1298,7 +1308,16 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
     const int filterID = ++m_lastFilterId;
     int row = lastIndex.row();
     for ( ; row < length(); ++row ) {
-        const bool shown = !isRowHidden(row) || !hideFiltered(row);
+        bool shown;
+        if (m_filterNarrowing) {
+            // Hidden by a less specific filter, so it cannot match now either.
+            if ( isRowHidden(row) )
+                continue;
+            shown = !hideFiltered(row);
+        } else {
+            shown = !isRowHidden(row) || !hideFiltered(row);
+        }
+
         if (shown && noCurrent) {
             noCurrent = false;
             setCurrent(row);
@@ -1311,6 +1330,9 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
             break;
         }
     }
+
+    if ( row >= length() )
+        m_filterComplete = true;
 
     d.updateAllRows();
     preloadCurrentPage();

@@ -266,8 +266,12 @@ public:
 
     bool matches(const QModelIndex &index, const ItemFilter &filter) const override
     {
-        const QString text = index.data(contentType::text).toString();
-        return filter.matches(text) || filter.matches(accentsRemoved(text));
+        if ( filter.matches(index.data(contentType::text).toString()) )
+            return true;
+
+        // Invalid if the text has no diacritics to remove - already matched above.
+        const QVariant folded = index.data(contentType::textWithoutAccents);
+        return folded.isValid() && filter.matches(folded.toString());
     }
 
     bool supportsEncryption() const override { return true; }

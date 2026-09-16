@@ -402,4 +402,10 @@ class ClipboardBrowser final : public QListView
         bool m_selectNewItems = false;
 
         int m_lastFilterId = 0;
+
+        /// Filtering only the visible rows, see ItemFilter::narrows().
+        bool m_filterNarrowing = false;
+
+        /// Last filter pass reached the end, so hidden rows are authoritative.
+        bool m_filterComplete = false;
 };

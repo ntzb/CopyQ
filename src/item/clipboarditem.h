@@ -3,10 +3,10 @@
 #pragma once
 
 
+#include <QString>
 #include <QVariant>
 
 class QByteArray;
-class QString;
 
 /**
  * Class for clipboard items in ClipboardModel.
@@ -57,6 +57,19 @@ public:
     /** Return data for format. */
     QByteArray data(const QString &format) const { return m_data.value(format).toByteArray(); }
 
+    /**
+     * Return item text, decoded once and cached.
+     * Filtering asks for this on every key press; decoding UTF-8 each time
+     * dominated the search.
+     */
+    const QString &text() const;
+
+    /**
+     * Return text with diacritics removed, or a null string if there was
+     * nothing to remove (in which case text() already answers the query).
+     */
+    const QString &textWithoutAccents() const;
+
     /** Return hash for item's data. */
     unsigned int dataHash() const;
 
@@ -65,4 +78,8 @@ private:
 
     QVariantMap m_data;
     mutable unsigned int m_hash;
+    mutable QString m_text;
+    mutable QString m_textWithoutAccents;
+    mutable bool m_textCached = false;
+    mutable bool m_textWithoutAccentsCached = false;
 };
