@@ -3,10 +3,10 @@ name: Windows
 
 on:
   push:
-    branches: [master, perf]
+    branches: [master, perf, bench, bench-master]
     tags: ['v*']
   pull_request:
-    branches: [master, perf]
+    branches: [master, perf, bench, bench-master]
   workflow_dispatch:
 
 
