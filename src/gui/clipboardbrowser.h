@@ -10,6 +10,7 @@
 #include "item/itemfilter.h"
 #include "item/itemwidget.h"
 
+#include <QElapsedTimer>
 #include <QListView>
 #include <QPointer>
 #include <QTimer>
@@ -418,4 +419,11 @@ class ClipboardBrowser final : public QListView
 
         /// Items changed since the last pass started, so hidden rows are stale.
         bool m_filterDirty = false;
+
+        /// Filter pass statistics, logged at debug level when a pass finishes.
+        QElapsedTimer m_filterPassTimer;
+        qint64 m_filterScanMs = 0;
+        int m_filterBatches = 0;
+        int m_filterTested = 0;
+        int m_filterShown = 0;
 };

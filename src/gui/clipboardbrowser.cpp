@@ -1285,6 +1285,12 @@ void ClipboardBrowser::filterItems(const ItemFilterPtr &filter)
         // it does not re-test, so it has to ask for that explicitly.
         m_filterNeedsCurrent = true;
 
+        m_filterPassTimer.start();
+        m_filterScanMs = 0;
+        m_filterBatches = 0;
+        m_filterTested = 0;
+        m_filterShown = 0;
+
         // Otherwise hide all rows first, then start filtering rows in batches
         // while processing events regularly to keep UI responsive.
         if (!m_filterNarrowing) {
@@ -1349,10 +1355,21 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
             // either, so only the visible ones are re-tested. Skipped rows
             // still count towards the time slice below - walking a long run
             // of them must not block the event loop.
-            shown = !isRowHidden(row) && !hideFiltered(row);
+            if ( isRowHidden(row) ) {
+                shown = false;
+            } else {
+                ++m_filterTested;
+                shown = !hideFiltered(row);
+            }
+        } else if ( !isRowHidden(row) ) {
+            shown = true;
         } else {
-            shown = !isRowHidden(row) || !hideFiltered(row);
+            ++m_filterTested;
+            shown = !hideFiltered(row);
         }
+
+        if (shown)
+            ++m_filterShown;
 
         if (shown && noCurrent) {
             noCurrent = false;
@@ -1368,8 +1385,26 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
         }
     }
 
-    if ( row >= length() )
+    m_filterScanMs += timer.elapsed();
+    ++m_filterBatches;
+
+    if ( row >= length() ) {
         m_filterComplete = true;
+
+        // The search string goes last so that a '%' in it is not substituted.
+        const auto passFilter = d.itemFilter();
+        COPYQ_LOG( QStringLiteral(
+                       "Filter: %1 items, %2 tested, %3 shown, %4 batches,"
+                       " %5 ms scan, %6 ms wall%7 [%8]")
+                   .arg(length())
+                   .arg(m_filterTested)
+                   .arg(m_filterShown)
+                   .arg(m_filterBatches)
+                   .arg(m_filterScanMs)
+                   .arg(m_filterPassTimer.elapsed())
+                   .arg(m_filterNarrowing ? QStringLiteral(", narrowed") : QString())
+                   .arg(passFilter ? passFilter->searchString() : QString()) );
+    }
 
     d.updateAllRows();
     preloadCurrentPage();
