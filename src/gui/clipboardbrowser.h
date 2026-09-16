@@ -413,6 +413,9 @@ class ClipboardBrowser final : public QListView
         /// Row un-hidden by a row-number search; never filtered out again.
         int m_filterKeepRow = -1;
 
+        /// Current item and selection still have to be moved onto a match.
+        bool m_filterNeedsCurrent = false;
+
         /// Items changed since the last pass started, so hidden rows are stale.
         bool m_filterDirty = false;
 };

@@ -907,11 +907,9 @@ void ClipboardBrowser::resizeEvent(QResizeEvent *event)
 
 void ClipboardBrowser::hideEvent(QHideEvent *event)
 {
-    // Switching tabs or closing the window ends the search for this browser;
-    // the text cache only pays off while one is active.
-    const auto filter = d.itemFilter();
-    if ( !filter || filter->matchesAll() )
-        m.clearTextCache();
+    // Nothing is being searched or drawn in a hidden browser, and the cache is
+    // derived state - what comes back into view is decoded again.
+    m.clearTextCache();
 
     QListView::hideEvent(event);
 }
@@ -1287,6 +1285,11 @@ void ClipboardBrowser::filterItems(const ItemFilterPtr &filter)
         m_filterComplete = false;
         m_filterDirty = false;
 
+        // Hiding every row makes the full pass move to the first match and
+        // collapse the selection onto it. The narrowing pass keeps the rows
+        // it does not re-test, so it has to ask for that explicitly.
+        m_filterNeedsCurrent = true;
+
         // Otherwise hide all rows first, then start filtering rows in batches
         // while processing events regularly to keep UI responsive.
         if (!m_filterNarrowing) {
@@ -1296,8 +1299,10 @@ void ClipboardBrowser::filterItems(const ItemFilterPtr &filter)
 
         // Searching a row number un-hides that row; it must survive the pass.
         m_filterKeepRow = currentRowFromSearch(newSearch);
-        if (m_filterKeepRow != -1)
+        if (m_filterKeepRow != -1) {
             setCurrent(m_filterKeepRow);
+            m_filterNeedsCurrent = false;
+        }
 
         filterBatch(++m_lastFilterId, index(0));
     } else {
@@ -1332,7 +1337,8 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
     timer.start();
 
     const QModelIndex current = currentIndex();
-    bool noCurrent = !current.isValid() || isRowHidden(current.row());
+    bool noCurrent = m_filterNeedsCurrent
+            || !current.isValid() || isRowHidden(current.row());
     const int filterID = ++m_lastFilterId;
     int row = lastIndex.row();
     for ( ; row < length(); ++row ) {
@@ -1351,6 +1357,7 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
 
         if (shown && noCurrent) {
             noCurrent = false;
+            m_filterNeedsCurrent = false;
             setCurrent(row);
         }
         if (timer.elapsed() > 20) {
@@ -1362,21 +1369,8 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
         }
     }
 
-    if ( row >= length() ) {
+    if ( row >= length() )
         m_filterComplete = true;
-
-        // The narrowing pass does not pre-hide everything, so the current row
-        // can survive into the pass and then be hidden by it.
-        const QModelIndex currentAfter = currentIndex();
-        if ( m_filterNarrowing && currentAfter.isValid() && isRowHidden(currentAfter.row()) ) {
-            for ( int r = 0; r < length(); ++r ) {
-                if ( !isRowHidden(r) ) {
-                    setCurrent(r);
-                    break;
-                }
-            }
-        }
-    }
 
     d.updateAllRows();
     preloadCurrentPage();
