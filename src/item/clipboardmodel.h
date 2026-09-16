@@ -124,6 +124,9 @@ public:
      */
     void clearTextCache() const;
 
+    /** Return the item's character summary without going through QVariant. */
+    quint64 searchSignature(int row) const { return m_clipboardList[row].searchSignature(); }
+
 private:
     ClipboardItemList m_clipboardList;
 };

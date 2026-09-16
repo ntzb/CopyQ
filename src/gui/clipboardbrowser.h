@@ -426,4 +426,8 @@ class ClipboardBrowser final : public QListView
         int m_filterBatches = 0;
         int m_filterTested = 0;
         int m_filterShown = 0;
+        mutable int m_filterRejected = 0;
+
+        /// Characters the search string requires; 0 when it cannot be used.
+        quint64 m_filterSignature = 0;
 };

@@ -292,6 +292,14 @@ bool ClipboardBrowser::isFiltered(int row) const
     if ( filter->matchesNone() )
         return true;
 
+    // An item without every character of the search string cannot contain it.
+    if ( m_filterSignature != 0
+         && (m.searchSignature(row) & m_filterSignature) != m_filterSignature )
+    {
+        ++m_filterRejected;
+        return true;
+    }
+
     const QModelIndex ind = m.index(row);
     return m_sharedData->itemFactory
             && !m_sharedData->itemFactory->matches(ind, *filter);
@@ -1284,12 +1292,14 @@ void ClipboardBrowser::filterItems(const ItemFilterPtr &filter)
         // collapse the selection onto it. The narrowing pass keeps the rows
         // it does not re-test, so it has to ask for that explicitly.
         m_filterNeedsCurrent = true;
+        m_filterSignature = filter->searchSignature();
 
         m_filterPassTimer.start();
         m_filterScanMs = 0;
         m_filterBatches = 0;
         m_filterTested = 0;
         m_filterShown = 0;
+        m_filterRejected = 0;
 
         // Otherwise hide all rows first, then start filtering rows in batches
         // while processing events regularly to keep UI responsive.
@@ -1314,6 +1324,7 @@ void ClipboardBrowser::filterItems(const ItemFilterPtr &filter)
         m_filterNarrowing = false;
         m_filterComplete = false;
         m_filterNeedsCurrent = false;
+        m_filterSignature = 0;
         m_filterKeepRow = -1;
         for ( int row = 0; row < length(); ++row )
             setRowHidden(row, false);
@@ -1396,11 +1407,12 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
         const auto passFilter = d.itemFilter();
         log( QStringLiteral(
                        "Filter: %1 items, %2 tested, %3 shown, %4 batches,"
-                       " %5 ms scan, %6 ms wall%7, %8 char search")
+                       " %5 rejected, %6 ms scan, %7 ms wall%8, %9 char search")
                    .arg(length())
                    .arg(m_filterTested)
                    .arg(m_filterShown)
                    .arg(m_filterBatches)
+                   .arg(m_filterRejected)
                    .arg(m_filterScanMs)
                    .arg(m_filterPassTimer.elapsed())
                    .arg(m_filterNarrowing ? QStringLiteral(", narrowed") : QString())

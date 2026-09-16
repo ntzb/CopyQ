@@ -485,17 +485,6 @@ ItemSaverPtr ItemFactory::initializeTab(const QString &tabName, QAbstractItemMod
 
 bool ItemFactory::matches(const QModelIndex &index, const ItemFilter &filter) const
 {
-    // Reject items that cannot contain every character of the search string
-    // before any of them is searched. Most items fail this.
-    const quint64 required = filter.searchSignature();
-    if (required != 0) {
-        // A model that does not provide the summary must not have all of its
-        // items rejected, so an invalid value means "cannot reject".
-        const QVariant present = index.data(contentType::searchSignature);
-        if ( present.isValid() && (present.toULongLong() & required) != required )
-            return false;
-    }
-
     if ( filter.matchesIndex(index) )
         return true;
 
