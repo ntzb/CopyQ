@@ -187,12 +187,20 @@ QString ClipboardItem::textWithoutAccents() const
     if (m_textWithoutAccentsCached)
         return m_textWithoutAccents;
 
-    const QString text = this->text();
-    QString folded = accentsRemoved(text);
-    if (folded == text)
+    // Items too large to cache would otherwise be decoded a second time on
+    // every key press. Remembering that there is nothing to fold costs a bool
+    // and answers the common case without decoding at all.
+    if (m_hasAccentsCached && !m_hasAccents)
+        return QString();
+
+    const QString decoded = text();
+    QString folded = accentsRemoved(decoded);
+    m_hasAccents = (folded != decoded);
+    m_hasAccentsCached = true;
+    if (!m_hasAccents)
         folded.clear();
 
-    if (text.size() <= maxCachedTextSize) {
+    if (decoded.size() <= maxCachedTextSize) {
         m_textWithoutAccents = folded;
         m_textWithoutAccentsCached = true;
     }
@@ -206,6 +214,7 @@ void ClipboardItem::clearTextCache() const
     m_textWithoutAccents.clear();
     m_textCached = false;
     m_textWithoutAccentsCached = false;
+    m_hasAccentsCached = false;
 }
 
 unsigned int ClipboardItem::dataHash() const

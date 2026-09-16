@@ -474,11 +474,16 @@ void ClipboardBrowser::connectModelAndDelegate()
              this, [this]() { delayedSaveItems(m_sharedData->saveDelayMsOnItemModified); } );
 
     // Narrowing assumes hidden rows stay non-matching; changing item data or
-    // adding items breaks that, so the next filter takes the full pass.
+    // adding items breaks that. This can arrive while a pass is running, so
+    // it is a separate flag the finishing pass cannot clear.
     connect( &m, &QAbstractItemModel::dataChanged,
-             this, [this]() { m_filterComplete = false; } );
+             this, [this]() { m_filterDirty = true; } );
     connect( &m, &QAbstractItemModel::rowsInserted,
-             this, [this]() { m_filterComplete = false; } );
+             this, [this]() { m_filterDirty = true; m_filterKeepRow = -1; } );
+    connect( &m, &QAbstractItemModel::rowsRemoved,
+             this, [this]() { m_filterKeepRow = -1; } );
+    connect( &m, &QAbstractItemModel::rowsMoved,
+             this, [this]() { m_filterKeepRow = -1; } );
 
     connect( &d, &ItemDelegate::itemWidgetCreated,
              this, &ClipboardBrowser::itemWidgetCreated );
@@ -894,6 +899,17 @@ void ClipboardBrowser::resizeEvent(QResizeEvent *event)
     m_timerPreload.start();
 }
 
+void ClipboardBrowser::hideEvent(QHideEvent *event)
+{
+    // Switching tabs or closing the window ends the search for this browser;
+    // the text cache only pays off while one is active.
+    const auto filter = d.itemFilter();
+    if ( !filter || filter->matchesAll() )
+        m.clearTextCache();
+
+    QListView::hideEvent(event);
+}
+
 void ClipboardBrowser::showEvent(QShowEvent *event)
 {
     preloadCurrentPage();
@@ -1256,9 +1272,10 @@ void ClipboardBrowser::filterItems(const ItemFilterPtr &filter)
         // If the new filter can only match a subset of the previous one and
         // that pass finished, the hidden rows are already known to not match,
         // so only the visible ones need to be re-tested.
-        m_filterNarrowing = m_filterComplete && oldFilter
+        m_filterNarrowing = m_filterComplete && !m_filterDirty && oldFilter
                 && filter->narrows(*oldFilter);
         m_filterComplete = false;
+        m_filterDirty = false;
 
         // Otherwise hide all rows first, then start filtering rows in batches
         // while processing events regularly to keep UI responsive.
@@ -1335,8 +1352,21 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
         }
     }
 
-    if ( row >= length() )
+    if ( row >= length() ) {
         m_filterComplete = true;
+
+        // The narrowing pass does not pre-hide everything, so the current row
+        // can survive into the pass and then be hidden by it.
+        const QModelIndex currentAfter = currentIndex();
+        if ( m_filterNarrowing && currentAfter.isValid() && isRowHidden(currentAfter.row()) ) {
+            for ( int r = 0; r < length(); ++r ) {
+                if ( !isRowHidden(r) ) {
+                    setCurrent(r);
+                    break;
+                }
+            }
+        }
+    }
 
     d.updateAllRows();
     preloadCurrentPage();
