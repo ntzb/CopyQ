@@ -213,7 +213,7 @@ public:
         // All needles have to be found, so every character of every needle
         // has to be present. A single '/' searches MIME formats instead of
         // the item text, where this says nothing.
-        if ( !searchString().contains(QLatin1Char('/')) ) {
+        if ( !searchString.contains(QLatin1Char('/')) ) {
             for (const QString &needle : m_needles)
                 addToSearchSignature(&m_signature, needle);
         }
