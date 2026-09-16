@@ -828,6 +828,11 @@ void ClipboardBrowser::onRowsInserted(const QModelIndex &, int first, int last)
     if ( !selection.isEmpty() ) {
         setCurrentIndex(current);
         selectionModel()->select(selection, QItemSelectionModel::ClearAndSelect);
+
+        // A filter pass in flight must not move the current item away from the
+        // new one, which is what happens without a filter.
+        if ( current.isValid() && !isRowHidden(current.row()) )
+            m_filterNeedsCurrent = false;
     }
 }
 
@@ -1296,9 +1301,13 @@ void ClipboardBrowser::filterItems(const ItemFilterPtr &filter)
 
         filterBatch(++m_lastFilterId, index(0));
     } else {
-        // Show all items if filter is cleared or invalid.
+        // Show all items if filter is cleared or invalid. A pass may still be
+        // scheduled; bump the id so it stops instead of stealing the current
+        // item once every row is visible again.
+        ++m_lastFilterId;
         m_filterNarrowing = false;
         m_filterComplete = false;
+        m_filterNeedsCurrent = false;
         m_filterKeepRow = -1;
         for ( int row = 0; row < length(); ++row )
             setRowHidden(row, false);
