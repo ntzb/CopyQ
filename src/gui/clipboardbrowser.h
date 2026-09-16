@@ -256,6 +256,7 @@ class ClipboardBrowser final : public QListView
         void keyPressEvent(QKeyEvent *event) override;
         void contextMenuEvent(QContextMenuEvent *) override;
         void resizeEvent(QResizeEvent *event) override;
+        void hideEvent(QHideEvent *event) override;
         void showEvent(QShowEvent *event) override;
         void currentChanged(const QModelIndex &current, const QModelIndex &previous) override;
         void selectionChanged(const QItemSelection &selected, const QItemSelection &deselected) override;
@@ -411,4 +412,7 @@ class ClipboardBrowser final : public QListView
 
         /// Row un-hidden by a row-number search; never filtered out again.
         int m_filterKeepRow = -1;
+
+        /// Items changed since the last pass started, so hidden rows are stale.
+        bool m_filterDirty = false;
 };

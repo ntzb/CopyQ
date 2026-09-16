@@ -86,4 +86,6 @@ private:
     mutable QString m_textWithoutAccents;
     mutable bool m_textCached = false;
     mutable bool m_textWithoutAccentsCached = false;
+    mutable bool m_hasAccents = false;
+    mutable bool m_hasAccentsCached = false;
 };
