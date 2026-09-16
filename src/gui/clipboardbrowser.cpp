@@ -1393,7 +1393,7 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
 
         // The search string goes last so that a '%' in it is not substituted.
         const auto passFilter = d.itemFilter();
-        COPYQ_LOG( QStringLiteral(
+        log( QStringLiteral(
                        "Filter: %1 items, %2 tested, %3 shown, %4 batches,"
                        " %5 ms scan, %6 ms wall%7 [%8]")
                    .arg(length())
@@ -1403,7 +1403,7 @@ void ClipboardBrowser::filterBatch(int filterId, const QPersistentModelIndex &la
                    .arg(m_filterScanMs)
                    .arg(m_filterPassTimer.elapsed())
                    .arg(m_filterNarrowing ? QStringLiteral(", narrowed") : QString())
-                   .arg(passFilter ? passFilter->searchString() : QString()) );
+                   .arg(passFilter ? passFilter->searchString() : QString()), LogNote );
     }
 
     d.updateAllRows();
