@@ -255,7 +255,9 @@ void ClipboardItem::clearTextCache() const
     m_textCached = false;
     m_textWithoutAccentsCached = false;
     m_hasAccentsCached = false;
-    m_searchSignatureCached = false;
+    // The character summary is 8 bytes and survives: recomputing it means
+    // decoding and normalizing the text again, which is what it exists to
+    // avoid. Only a change of the data itself invalidates it.
 }
 
 unsigned int ClipboardItem::dataHash() const
@@ -270,4 +272,5 @@ void ClipboardItem::invalidateDataHash()
 {
     m_hash = 0;
     clearTextCache();
+    m_searchSignatureCached = false;
 }
