@@ -74,6 +74,12 @@ public:
     /** Drop the cached text; the data itself is kept. */
     void clearTextCache() const;
 
+    /**
+     * Return which characters the item's searchable text contains, as a bit
+     * per character class. Used to reject items before searching their text.
+     */
+    quint64 searchSignature() const;
+
     /** Return hash for item's data. */
     unsigned int dataHash() const;
 
@@ -88,4 +94,6 @@ private:
     mutable bool m_textWithoutAccentsCached = false;
     mutable bool m_hasAccents = false;
     mutable bool m_hasAccentsCached = false;
+    mutable quint64 m_searchSignature = 0;
+    mutable bool m_searchSignatureCached = false;
 };

@@ -4,6 +4,7 @@
 
 #include "common/contenttype.h"
 #include "common/mimetypes.h"
+#include "common/searchsignature.h"
 #include "common/textdata.h"
 #include "item/serialize.h"
 
@@ -147,6 +148,8 @@ QVariant ClipboardItem::data(int role) const
         return m_data; // copy-on-write, so this should be fast
     case contentType::text:
         return text();
+    case contentType::searchSignature:
+        return QVariant(searchSignature());
     case contentType::textWithoutAccents: {
         const QString folded = textWithoutAccents();
         return folded.isNull() ? QVariant() : QVariant(folded);
@@ -208,6 +211,38 @@ QString ClipboardItem::textWithoutAccents() const
     return folded;
 }
 
+quint64 ClipboardItem::searchSignature() const
+{
+    if (m_searchSignatureCached)
+        return m_searchSignature;
+
+    quint64 signature = 0;
+    for (auto it = m_data.constBegin(); it != m_data.constEnd(); ++it) {
+        // Only formats a matcher reads as text: item text, notes, tags and
+        // the file name used by synchronized tabs. Anything else - images
+        // above all - is never searched, so it contributes nothing.
+        const QString &mime = it.key();
+        const bool isText = mime.startsWith(QLatin1String("text/"))
+                || ( mime.startsWith(QLatin1String(COPYQ_MIME_PREFIX))
+                     && !mime.startsWith(mimePrivatePrefix) );
+        if (!isText)
+            continue;
+
+        const QString text = getTextData( it->toByteArray() );
+        addToSearchSignature(&signature, text);
+
+        // The search also matches with diacritics stripped, so both forms
+        // have to be covered or a match could be rejected.
+        const QString folded = accentsRemoved(text);
+        if (folded != text)
+            addToSearchSignature(&signature, folded);
+    }
+
+    m_searchSignature = signature;
+    m_searchSignatureCached = true;
+    return signature;
+}
+
 void ClipboardItem::clearTextCache() const
 {
     m_text.clear();
@@ -215,6 +250,7 @@ void ClipboardItem::clearTextCache() const
     m_textCached = false;
     m_textWithoutAccentsCached = false;
     m_hasAccentsCached = false;
+    m_searchSignatureCached = false;
 }
 
 unsigned int ClipboardItem::dataHash() const
