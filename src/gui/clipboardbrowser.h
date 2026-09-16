@@ -10,6 +10,7 @@
 #include "item/itemfilter.h"
 #include "item/itemwidget.h"
 
+#include <QElapsedTimer>
 #include <QListView>
 #include <QPointer>
 #include <QTimer>
@@ -402,4 +403,11 @@ class ClipboardBrowser final : public QListView
         bool m_selectNewItems = false;
 
         int m_lastFilterId = 0;
+
+        /// Filter pass statistics, logged at debug level when a pass finishes.
+        QElapsedTimer m_filterPassTimer;
+        qint64 m_filterScanMs = 0;
+        int m_filterBatches = 0;
+        int m_filterTested = 0;
+        int m_filterShown = 0;
 };
