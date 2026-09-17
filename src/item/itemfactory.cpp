@@ -266,12 +266,27 @@ public:
 
     bool matches(const QModelIndex &index, const ItemFilter &filter) const override
     {
-        if ( filter.matches(index.data(contentType::text).toString()) )
+        // Experiment: search only the beginning of very long items. Most of
+        // the stored text sits in a handful of huge items, so this bounds
+        // what a single item can cost - at the price of not finding what is
+        // past the limit.
+        static const int maxLength = qEnvironmentVariableIntValue("COPYQ_SEARCH_MAX_LENGTH");
+
+        QString text = index.data(contentType::text).toString();
+        if (maxLength > 0 && text.size() > maxLength)
+            text.truncate(maxLength);
+        if ( filter.matches(text) )
             return true;
 
         // Invalid if the text has no diacritics to remove - already matched above.
         const QVariant folded = index.data(contentType::textWithoutAccents);
-        return folded.isValid() && filter.matches(folded.toString());
+        if ( !folded.isValid() )
+            return false;
+
+        QString foldedText = folded.toString();
+        if (maxLength > 0 && foldedText.size() > maxLength)
+            foldedText.truncate(maxLength);
+        return filter.matches(foldedText);
     }
 
     bool supportsEncryption() const override { return true; }
