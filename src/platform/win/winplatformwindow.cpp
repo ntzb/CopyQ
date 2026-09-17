@@ -91,6 +91,25 @@ bool isWindowInForeground(HWND window)
     return GetForegroundWindow() == window;
 }
 
+/**
+ * Log a successful raise, naming the window that actually ended up in the
+ * foreground when it is not the target itself.
+ */
+void logWindowRaised(const char *text, HWND window)
+{
+    const HWND foregroundWindow = GetForegroundWindow();
+    if (foregroundWindow == window) {
+        logWindowDebug(text, window);
+        return;
+    }
+
+    COPYQ_LOG( windowLogText(
+        QStringLiteral("%1 (foreground window is %2 \"%3\")")
+        .arg( QString::fromLatin1(text) )
+        .arg( reinterpret_cast<quintptr>(foregroundWindow) )
+        .arg( windowTitle(foregroundWindow) ), window) );
+}
+
 bool waitForWindowActive(HWND window, int timeoutMs)
 {
     // Note: Must not be called while thread input is attached to another
@@ -177,7 +196,7 @@ bool raiseWindow(HWND window, int timeoutMs)
 
     setForegroundWindow(window);
     if ( waitForWindowActive(window, timeoutMs) ) {
-        logWindowDebug("Raised", window);
+        logWindowRaised("Raised", window);
         return true;
     }
 
@@ -185,7 +204,7 @@ bool raiseWindow(HWND window, int timeoutMs)
     claimLastInputEvent();
     setForegroundWindow(window);
     if ( waitForWindowActive(window, timeoutMs) ) {
-        logWindowDebug("Raised after claiming the last input event", window);
+        logWindowRaised("Raised after claiming the last input event", window);
         return true;
     }
 

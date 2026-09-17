@@ -235,14 +235,113 @@ HWND getLastVisibleActivePopUpOfWindow(HWND window)
     return nullptr;
 }
 
+QString windowTitle(HWND window)
+{
+    WCHAR buf[256];
+    const int length = GetWindowTextW(window, buf, 256);
+    return QString::fromWCharArray(buf, length);
+}
+
+QString windowProcessName(HWND window)
+{
+    DWORD processId = 0;
+    GetWindowThreadProcessId(window, &processId);
+    if (processId == 0)
+        return {};
+
+    const HANDLE process =
+        OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processId);
+    if (!process)
+        return {};
+
+    WCHAR buf[MAX_PATH];
+    const DWORD length = GetModuleFileNameExW(process, nullptr, buf, MAX_PATH);
+    CloseHandle(process);
+
+    return QFileInfo( QString::fromWCharArray(buf, length) ).fileName();
+}
+
+/**
+ * Return true for windows the compositor hides from the user.
+ *
+ * Suspended store applications and various shell surfaces stay in the window
+ * list and IsWindowVisible() returns true for them, but they are cloaked and
+ * cannot be switched to, let alone pasted to.
+ */
+bool isWindowCloaked(HWND window)
+{
+    using DwmGetWindowAttributePtr = HRESULT (WINAPI *)(HWND, DWORD, PVOID, DWORD);
+    static const auto dwmGetWindowAttribute = []() -> DwmGetWindowAttributePtr {
+        const HMODULE dwmapi = LoadLibraryW(L"dwmapi.dll");
+        if (!dwmapi)
+            return nullptr;
+        return reinterpret_cast<DwmGetWindowAttributePtr>(
+            GetProcAddress(dwmapi, "DwmGetWindowAttribute") );
+    }();
+
+    if (!dwmGetWindowAttribute)
+        return false;
+
+    constexpr DWORD dwmwaCloaked = 14;
+    DWORD cloaked = 0;
+    const HRESULT result =
+        dwmGetWindowAttribute(window, dwmwaCloaked, &cloaked, sizeof(cloaked));
+    return SUCCEEDED(result) && cloaked != 0;
+}
+
+QString windowDescription(HWND window)
+{
+    if (!window)
+        return QStringLiteral("none");
+
+    RECT rect {};
+    GetWindowRect(window, &rect);
+
+    return QStringLiteral(
+        "%1 class:\"%2\" title:\"%3\" exe:\"%4\""
+        " style:0x%5 exstyle:0x%6 visible:%7 cloaked:%8 size:%9x%10")
+        .arg( reinterpret_cast<quintptr>(window) )
+        .arg( windowClass(window), windowTitle(window), windowProcessName(window) )
+        .arg( static_cast<quint32>(GetWindowLong(window, GWL_STYLE)), 0, 16 )
+        .arg( static_cast<quint32>(GetWindowLong(window, GWL_EXSTYLE)), 0, 16 )
+        .arg( IsWindowVisible(window) ? 1 : 0 )
+        .arg( isWindowCloaked(window) ? 1 : 0 )
+        .arg( rect.right - rect.left )
+        .arg( rect.bottom - rect.top );
+}
+
+/**
+ * Return true if the window is one the user could have switched away from,
+ * and therefore a sensible target for pasting.
+ */
 bool isAltTabWindow(HWND window)
 {
     if (!window || window == GetShellWindow())
         return false;
 
+    if ( !IsWindowVisible(window) )
+        return false;
+
+    const LONG exStyle = GetWindowLong(window, GWL_EXSTYLE);
+    if (exStyle & WS_EX_TOOLWINDOW)
+        return false;
+
+    // Such a window never takes the keyboard focus, so pasting to it is
+    // guaranteed to go somewhere else.
+    if (exStyle & WS_EX_NOACTIVATE)
+        return false;
+
     HWND root = GetAncestor(window, GA_ROOTOWNER);
 
     if (getLastVisibleActivePopUpOfWindow(root) != window)
+        return false;
+
+    if ( isWindowCloaked(window) )
+        return false;
+
+    // Shell surfaces and hidden helper windows have no title. A window the
+    // user was typing in has one.
+    if ( windowTitle(window).isEmpty() )
         return false;
 
     const QString cls = windowClass(window);
@@ -284,9 +383,21 @@ PlatformWindowPtr WinPlatform::getWindow(WId winId)
 
 PlatformWindowPtr WinPlatform::getCurrentWindow()
 {
-    currentWindow = GetForegroundWindow();
-    if (!isAltTabWindow(currentWindow))
+    const HWND foregroundWindow = GetForegroundWindow();
+    currentWindow = foregroundWindow;
+
+    if ( !isAltTabWindow(currentWindow) ) {
+        // Note: The callback only assigns a window if it finds a suitable
+        // one, so reset first - returning the rejected foreground window
+        // would be worse than returning nothing.
+        currentWindow = nullptr;
         EnumWindows(getCurrentWindowProc, 0);
+        COPYQ_LOG( QStringLiteral("Current window: %1 (foreground window %2 rejected)")
+                   .arg( windowDescription(currentWindow), windowDescription(foregroundWindow) ) );
+    } else {
+        COPYQ_LOG( QStringLiteral("Current window: %1").arg(windowDescription(currentWindow)) );
+    }
+
     return PlatformWindowPtr( currentWindow ? new WinPlatformWindow(currentWindow) : nullptr );
 }
 
