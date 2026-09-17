@@ -3818,11 +3818,15 @@ void MainWindow::activateCurrentItemHelper()
     // activate target window for pasting.
     c->moveToClipboard();
 
+    // Raise the target window before hiding the main window. While the main
+    // window is still focused, this application is allowed to change the
+    // active window; once it gives up the focus, the window manager can
+    // refuse to activate any window on its behalf (on Windows silently).
+    if ( lastWindow && (activateWindow || paste) )
+        lastWindow->raise();
+
     if ( m_options.activateCloses() )
         hideWindow();
-
-    if (lastWindow && activateWindow)
-        lastWindow->raise();
 
     enterBrowseMode();
 
