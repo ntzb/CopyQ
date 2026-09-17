@@ -135,7 +135,7 @@ void setForegroundWindow(HWND window)
 
     // Sharing the input queue with the foreground window lifts the
     // restrictions on changing the foreground window, and sharing it with
-    // the target window is required for SetActiveWindow()/SetFocus().
+    // the target window is required for SetActiveWindow().
     const bool attachedForeground = foregroundThreadId != 0
             && foregroundThreadId != thisThreadId
             && AttachThreadInput(thisThreadId, foregroundThreadId, true);
@@ -153,8 +153,9 @@ void setForegroundWindow(HWND window)
     BringWindowToTop(window);
     SetWindowPos(window, HWND_TOP, 0, 0, 0, 0,
                  SWP_DRAWFRAME | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+    // Note: Only activate the top level window. Setting the focus directly
+    // would take it from the child widget that is supposed to be pasted to.
     SetActiveWindow(window);
-    SetFocus(window);
 
     if (attachedTarget)
         AttachThreadInput(thisThreadId, targetThreadId, false);
