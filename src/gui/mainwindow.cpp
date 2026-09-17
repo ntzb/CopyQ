@@ -17,6 +17,7 @@
 #include "common/log.h"
 #include "common/mimetypes.h"
 #include "common/shortcuts.h"
+#include "common/sleeptimer.h"
 #include "common/tabs.h"
 #include "common/textdata.h"
 #include "common/timer.h"
@@ -94,6 +95,7 @@ Q_DECLARE_LOGGING_CATEGORY(logCategory)
 Q_LOGGING_CATEGORY(logCategory, "copyq.wnd")
 
 const int contextMenuUpdateIntervalMsec = 100;
+const int menuCloseWaitMs = 100;
 const int itemPreviewUpdateIntervalMsec = 100;
 
 constexpr auto dataStreamImportVersionDefault = QDataStream::Qt_4_7;
@@ -2184,6 +2186,16 @@ void MainWindow::activateMenuItem(ClipboardBrowserPlaceholder *placeholder, cons
         updateFocusWindows();
 
     PlatformWindowPtr lastWindow = m_windowForMenuPaste;
+
+    // Hiding a menu is not synchronous. Windows refuses to change the
+    // foreground window while a menu is open, so raising and pasting to the
+    // target window has to wait until the menu is really gone.
+    if ( QApplication::activePopupWidget() ) {
+        SleepTimer t(menuCloseWaitMs);
+        while ( QApplication::activePopupWidget() && t.sleep() ) {}
+        COPYQ_LOG( QStringLiteral("Waited for menu to close before pasting (still open: %1)")
+                   .arg(QApplication::activePopupWidget() ? 1 : 0) );
+    }
 
     if ( m_options.trayItemPaste && !omitPaste && canPaste() ) {
         // Raise the target window before paste so that getCurrentWindow()

@@ -61,43 +61,135 @@ void logWindowDebug(const char *text, HWND window)
     COPYQ_LOG( windowLogText(text, window) );
 }
 
-bool raiseWindowHelper(HWND window)
+DWORD windowProcessId(HWND window)
 {
-    if (!SetForegroundWindow(window)) {
-        logWindowWarning("Failed to raise: SetForegroundWindow() == false", window);
-        return false;
-    }
-
-    SetWindowPos(window, HWND_TOP, 0, 0, 0, 0,
-                 SWP_DRAWFRAME | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-
-    logWindowDebug("Raised", window);
-
-    return true;
+    DWORD processId = 0;
+    GetWindowThreadProcessId(window, &processId);
+    return processId;
 }
 
-bool raiseWindow(HWND window)
+/**
+ * Return true if the target window (or another window of the same
+ * application) is in the foreground.
+ *
+ * Comparing the process instead of the window handle avoids false negatives
+ * for applications that move the focus to a different top level window of
+ * their own when activated.
+ */
+bool isWindowActive(HWND window)
+{
+    const HWND foregroundWindow = GetForegroundWindow();
+    if (foregroundWindow == window)
+        return true;
+
+    const DWORD processId = windowProcessId(window);
+    return processId != 0 && processId == windowProcessId(foregroundWindow);
+}
+
+bool isWindowInForeground(HWND window)
+{
+    return GetForegroundWindow() == window;
+}
+
+bool waitForWindowActive(HWND window, int timeoutMs)
+{
+    // Note: Must not be called while thread input is attached to another
+    // thread, otherwise the other application can stop processing messages.
+    for (int elapsedMs = 0; elapsedMs < timeoutMs; elapsedMs += 5) {
+        if ( isWindowActive(window) )
+            return true;
+        Sleep(5);
+    }
+
+    return isWindowActive(window);
+}
+
+/**
+ * Claim the last input event for this process.
+ *
+ * Windows only allows the process that received the last input event to
+ * change the foreground window. Any other process is silently refused:
+ * SetForegroundWindow() still reports success, but it only flashes the task
+ * bar button instead of activating the window. This is why pasting works
+ * when the main window or the tray menu is opened with a global shortcut
+ * (the key press is delivered to this process) but not when it is opened
+ * with the mouse (the click is delivered to the shell).
+ *
+ * Injecting a key press satisfies the check. VK_NONAME is reserved and
+ * ignored by applications, so it cannot disturb the target window.
+ */
+void claimLastInputEvent()
+{
+    INPUT input[] = {
+        createInput(VK_NONAME),
+        createInput(VK_NONAME, KEYEVENTF_KEYUP)
+    };
+    SendInput( 2, input, sizeof(INPUT) );
+}
+
+void setForegroundWindow(HWND window)
+{
+    const auto thisThreadId = GetCurrentThreadId();
+    const auto foregroundThreadId = GetWindowThreadProcessId(GetForegroundWindow(), nullptr);
+    const auto targetThreadId = GetWindowThreadProcessId(window, nullptr);
+
+    // Sharing the input queue with the foreground window lifts the
+    // restrictions on changing the foreground window, and sharing it with
+    // the target window is required for SetActiveWindow()/SetFocus().
+    const bool attachedForeground = foregroundThreadId != 0
+            && foregroundThreadId != thisThreadId
+            && AttachThreadInput(thisThreadId, foregroundThreadId, true);
+    const bool attachedTarget = targetThreadId != 0
+            && targetThreadId != thisThreadId
+            && targetThreadId != foregroundThreadId
+            && AttachThreadInput(thisThreadId, targetThreadId, true);
+
+    COPYQ_LOG( windowLogText(
+        QStringLiteral("Raising (attached foreground: %1, attached target: %2)")
+        .arg(attachedForeground ? 1 : 0)
+        .arg(attachedTarget ? 1 : 0), window) );
+
+    SetForegroundWindow(window);
+    BringWindowToTop(window);
+    SetWindowPos(window, HWND_TOP, 0, 0, 0, 0,
+                 SWP_DRAWFRAME | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+    SetActiveWindow(window);
+    SetFocus(window);
+
+    if (attachedTarget)
+        AttachThreadInput(thisThreadId, targetThreadId, false);
+    if (attachedForeground)
+        AttachThreadInput(thisThreadId, foregroundThreadId, false);
+}
+
+bool raiseWindow(HWND window, int timeoutMs)
 {
     if (!IsWindowVisible(window)) {
         logWindowWarning("Failed to raise: IsWindowVisible() == false", window);
         return false;
     }
 
-    // WORKAROUND: Set foreground window if even this process is not in foreground.
-    const auto thisThreadId = GetCurrentThreadId();
-    const auto foregroundThreadId = GetWindowThreadProcessId(GetForegroundWindow(), nullptr);
-    if (thisThreadId != foregroundThreadId) {
-        if ( AttachThreadInput(thisThreadId, foregroundThreadId, true) ) {
-            logWindowDebug("Attached foreground thread", window);
-            const bool result = raiseWindowHelper(window);
-            AttachThreadInput(thisThreadId, foregroundThreadId, false);
-            return result;
-        }
-
-        logWindowDebug("Failed to attach foreground thread", window);
+    if ( isWindowInForeground(window) ) {
+        logWindowDebug("Already in foreground", window);
+        return true;
     }
 
-    return raiseWindowHelper(window);
+    setForegroundWindow(window);
+    if ( waitForWindowActive(window, timeoutMs) ) {
+        logWindowDebug("Raised", window);
+        return true;
+    }
+
+    logWindowDebug("Failed to raise, retrying with the last input event claimed", window);
+    claimLastInputEvent();
+    setForegroundWindow(window);
+    if ( waitForWindowActive(window, timeoutMs) ) {
+        logWindowDebug("Raised after claiming the last input event", window);
+        return true;
+    }
+
+    logWindowWarning("Failed to raise: window did not become active", window);
+    return false;
 }
 
 bool isKeyPressed(int key)
@@ -164,7 +256,8 @@ QString WinPlatformWindow::getTitle()
 
 void WinPlatformWindow::raise()
 {
-    raiseWindow(m_window);
+    const AppConfig config;
+    raiseWindow( m_window, config.option<Config::window_wait_raised_ms>() );
 }
 
 bool WinPlatformWindow::pasteFromClipboard()
@@ -198,7 +291,7 @@ bool WinPlatformWindow::sendKeyPress(WORD modifier, WORD key, const AppConfig &c
 {
     waitMs(config.option<Config::window_wait_before_raise_ms>());
 
-    if (!raiseWindow(m_window))
+    if ( !raiseWindow(m_window, config.option<Config::window_wait_raised_ms>()) )
         return false;
 
     waitMs(config.option<Config::window_wait_after_raised_ms>());
