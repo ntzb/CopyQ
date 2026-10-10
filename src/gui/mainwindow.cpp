@@ -68,6 +68,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QElapsedTimer>
 #include <QDesktopServices>
 #include <QFile>
 #include <QFileDialog>
@@ -3901,6 +3902,8 @@ void MainWindow::activateCurrentItemHelper()
     // Copy current item or selection to clipboard.
     // While clipboard is being set (in separate process)
     // activate target window for pasting.
+    QElapsedTimer sinceClipboardSet;
+    sinceClipboardSet.start();
     c->moveToClipboard();
 
     // Raise the target window before hiding the main window. While the main
@@ -3920,8 +3923,12 @@ void MainWindow::activateCurrentItemHelper()
             COPYQ_LOG("Pasting item with paste()");
             runScript(QStringLiteral("paste()"));
         } else if (lastWindow) {
-            COPYQ_LOG( QStringLiteral("Pasting item from main window to: %1")
-                       .arg(lastWindow->getTitle()) );
+            // The clipboard is set by another process: how long ago tells
+            // whether an empty paste could be a race with it.
+            COPYQ_LOG( QStringLiteral("Pasting item from main window to: %1"
+                                      " (%2 ms after setting the clipboard)")
+                       .arg( lastWindow->getTitle() )
+                       .arg( sinceClipboardSet.elapsed() ) );
             lastWindow->pasteFromClipboard();
         }
     }
