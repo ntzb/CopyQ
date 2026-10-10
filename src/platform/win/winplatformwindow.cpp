@@ -38,15 +38,17 @@ INPUT createInput(WORD key, DWORD flags = 0)
 
 QString windowLogText(QString text, HWND window)
 {
+    // Before anything else overwrites it, in particular reading the title.
+    const DWORD lastError = GetLastError();
+
     const QString windowInfo =
             QString("%1").arg(reinterpret_cast<quintptr>(window))
             + " \"" + windowTitle(window) + "\"";
 
     text.prepend("Window " + windowInfo + ": ");
 
-    const DWORD lastError = GetLastError();
     if (lastError != 0)
-        text.append( QString(" (last error is %1)").arg(GetLastError()) );
+        text.append( QString(" (last error is %1)").arg(lastError) );
 
     return text;
 }
