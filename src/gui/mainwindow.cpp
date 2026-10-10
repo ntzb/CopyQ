@@ -65,6 +65,7 @@
 #endif
 
 #include <QAction>
+#include <QApplication>
 #include <QCloseEvent>
 #include <QDesktopServices>
 #include <QFile>
@@ -649,6 +650,16 @@ bool checkFileAndStreamErrors(const QFileDevice &file, const QDataStream &stream
     }
 
     return true;
+}
+
+/// Return the application's own top level window matching, if there is one.
+QWidget *ownWindowWidget(const PlatformWindowPtr &window)
+{
+    const auto widgets = QApplication::topLevelWidgets();
+    const auto it = std::find_if(
+        widgets.cbegin(), widgets.cend(),
+        [&window](QWidget *widget) { return window->matchesWidget(widget); } );
+    return it == widgets.cend() ? nullptr : *it;
 }
 
 } // namespace
@@ -4123,8 +4134,26 @@ void MainWindow::updateFocusWindows()
         qCDebug(logCategory) << "Focus: tray menu";
     } else if (lastWindow->matchesWidget(m_menu)) {
         qCDebug(logCategory) << "Focus: menu";
+    } else if ( QWidget *ownWindow = ownWindowWidget(lastWindow) ) {
+        qCDebug(logCategory) << "Focus: own window";
+
+        // Pasting to a dialog of this application is supported, but it can be
+        // closed before the paste. Return to the last window outside the
+        // application instead of pasting to one that no longer exists.
+        if (m_ownPasteWindow != ownWindow) {
+            m_ownPasteWindow = ownWindow;
+            connect( ownWindow, &QObject::destroyed, this, [this]() {
+                m_ownPasteWindow = nullptr;
+                m_windowForMainPaste = m_windowForForeignPaste;
+                m_windowForMenuPaste = m_windowForForeignPaste;
+            } );
+        }
+
+        m_windowForMainPaste = lastWindow;
+        m_windowForMenuPaste = lastWindow;
     } else {
         qCDebug(logCategory) << "Focus:" << lastWindow->getTitle();
+        m_windowForForeignPaste = lastWindow;
         m_windowForMainPaste = lastWindow;
         m_windowForMenuPaste = lastWindow;
     }
