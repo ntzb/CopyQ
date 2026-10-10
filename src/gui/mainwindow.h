@@ -728,6 +728,10 @@ private:
     PlatformWindowPtr m_windowForMenuPaste;
     PlatformWindowPtr m_windowForMainPaste;
 
+    /// Last window outside this application, used when an own window closes.
+    PlatformWindowPtr m_windowForForeignPaste;
+    QPointer<QWidget> m_ownPasteWindow;
+
     QTimer m_timerUpdateFocusWindows;
     QTimer m_timerUpdateContextMenu;
     QTimer m_timerUpdatePreview;
